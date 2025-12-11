@@ -1,0 +1,1322 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/filter.css">
+<link rel="stylesheet" href="css/nouislider.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <link rel="stylesheet" href="css/leaflet-measure.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title>LIMITES ADMINISTRATIVES DU CAMEROUN </title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="js/leaflet-measure.js"></script>
+        <script src="js/tailDT.js"></script>
+<script src="js/nouislider.min.js"></script>
+<script src="js/wNumb.js"></script>
+        <script src="data/arrondissement_cam_360_1.js"></script>
+        <script src="data/departement_cam_2.js"></script>
+        <script src="data/limites_pays_3.js"></script>
+        <script src="data/region_cam_4.js"></script>
+        <script src="data/region_ligne_5.js"></script>
+        <script src="data/arrondissement_cam_line_6.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: '#a6cee3',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: '#a6cee3',
+                fillOpacity: 1
+              });
+            }
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        })
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var title = new L.Control({'position':'topright'});
+        title.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+        title.update = function () {
+            this._div.innerHTML = '<h2>LIMITES ADMINISTRATIVES DU CAMEROUN </h2>';
+        };
+        title.addTo(map);
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var measureControl = new L.Control.Measure({
+            position: 'topleft',
+            primaryLengthUnit: 'meters',
+            secondaryLengthUnit: 'kilometers',
+            primaryAreaUnit: 'sqmeters',
+            secondaryAreaUnit: 'hectares'
+        });
+        measureControl.addTo(map);
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+            if (bounds_group.getLayers().length) {
+                map.fitBounds(bounds_group.getBounds());
+            }
+        }
+        map.createPane('pane_OpenStreetMap_0');
+        map.getPane('pane_OpenStreetMap_0').style.zIndex = 400;
+        var layer_OpenStreetMap_0 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OpenStreetMap_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OpenStreetMap_0;
+        map.addLayer(layer_OpenStreetMap_0);
+        function pop_arrondissement_cam_360_1(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['num_ar'] !== null ? autolinker.link(String(feature.properties['num_ar']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_arron'] !== null ? autolinker.link(String(feature.properties['code_arron']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_arro_1</th>\
+                        <td class="visible-with-data" id="nom_arro_1">' + (feature.properties['nom_arro_1'] !== null ? autolinker.link(String(feature.properties['nom_arro_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_dept</th>\
+                        <td class="visible-with-data" id="nom_dept">' + (feature.properties['nom_dept'] !== null ? autolinker.link(String(feature.properties['nom_dept']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_region</th>\
+                        <td class="visible-with-data" id="nom_region">' + (feature.properties['nom_region'] !== null ? autolinker.link(String(feature.properties['nom_region']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_arr_2'] !== null ? autolinker.link(String(feature.properties['code_arr_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_dept'] !== null ? autolinker.link(String(feature.properties['code_dept']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_regio'] !== null ? autolinker.link(String(feature.properties['code_regio']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">regions</th>\
+                        <td class="visible-with-data" id="regions">' + (feature.properties['regions'] !== null ? autolinker.link(String(feature.properties['regions']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_arrondissement_cam_360_1_0() {
+            return {
+                pane: 'pane_arrondissement_cam_360_1',
+                opacity: 1,
+                color: 'rgba(51,160,44,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(133,182,111,0.07450980392156863)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_arrondissement_cam_360_1');
+        map.getPane('pane_arrondissement_cam_360_1').style.zIndex = 401;
+        map.getPane('pane_arrondissement_cam_360_1').style['mix-blend-mode'] = 'normal';
+        var layer_arrondissement_cam_360_1 = new L.geoJson(json_arrondissement_cam_360_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_arrondissement_cam_360_1',
+            layerName: 'layer_arrondissement_cam_360_1',
+            pane: 'pane_arrondissement_cam_360_1',
+            onEachFeature: pop_arrondissement_cam_360_1,
+            style: style_arrondissement_cam_360_1_0,
+        });
+        bounds_group.addLayer(layer_arrondissement_cam_360_1);
+        map.addLayer(layer_arrondissement_cam_360_1);
+        function pop_departement_cam_2(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['gid'] !== null ? autolinker.link(String(feature.properties['gid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_dept</th>\
+                        <td class="visible-with-data" id="nom_dept">' + (feature.properties['nom_dept'] !== null ? autolinker.link(String(feature.properties['nom_dept']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_region</th>\
+                        <td class="visible-with-data" id="nom_region">' + (feature.properties['nom_region'] !== null ? autolinker.link(String(feature.properties['nom_region']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_dept'] !== null ? autolinker.link(String(feature.properties['code_dept']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_regio'] !== null ? autolinker.link(String(feature.properties['code_regio']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['sup_2007'] !== null ? autolinker.link(String(feature.properties['sup_2007']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['prod_2007'] !== null ? autolinker.link(String(feature.properties['prod_2007']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_departement_cam_2_0() {
+            return {
+                pane: 'pane_departement_cam_2',
+                opacity: 1,
+                color: 'rgba(227,26,28,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(243,166,178,0.0)',
+                interactive: false,
+            }
+        }
+        map.createPane('pane_departement_cam_2');
+        map.getPane('pane_departement_cam_2').style.zIndex = 402;
+        map.getPane('pane_departement_cam_2').style['mix-blend-mode'] = 'normal';
+        var layer_departement_cam_2 = new L.geoJson(json_departement_cam_2, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_departement_cam_2',
+            layerName: 'layer_departement_cam_2',
+            pane: 'pane_departement_cam_2',
+            onEachFeature: pop_departement_cam_2,
+            style: style_departement_cam_2_0,
+        });
+        bounds_group.addLayer(layer_departement_cam_2);
+        map.addLayer(layer_departement_cam_2);
+        function pop_limites_pays_3(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['pays'] !== null ? autolinker.link(String(feature.properties['pays']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_limites_pays_3_0() {
+            return {
+                pane: 'pane_limites_pays_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(232,113,141,0.0)',
+                interactive: false,
+            }
+        }
+        map.createPane('pane_limites_pays_3');
+        map.getPane('pane_limites_pays_3').style.zIndex = 403;
+        map.getPane('pane_limites_pays_3').style['mix-blend-mode'] = 'normal';
+        var layer_limites_pays_3 = new L.geoJson(json_limites_pays_3, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_limites_pays_3',
+            layerName: 'layer_limites_pays_3',
+            pane: 'pane_limites_pays_3',
+            onEachFeature: pop_limites_pays_3,
+            style: style_limites_pays_3_0,
+        });
+        bounds_group.addLayer(layer_limites_pays_3);
+        map.addLayer(layer_limites_pays_3);
+        function pop_region_cam_4(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">nom_region</th>\
+                        <td class="visible-with-data" id="nom_region">' + (feature.properties['nom_region'] !== null ? autolinker.link(String(feature.properties['nom_region']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_regio'] !== null ? autolinker.link(String(feature.properties['code_regio']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['pays'] !== null ? autolinker.link(String(feature.properties['pays']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_region_cam_4_0() {
+            return {
+                pane: 'pane_region_cam_4',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 3.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(183,72,75,0.0)',
+                interactive: false,
+            }
+        }
+        map.createPane('pane_region_cam_4');
+        map.getPane('pane_region_cam_4').style.zIndex = 404;
+        map.getPane('pane_region_cam_4').style['mix-blend-mode'] = 'normal';
+        var layer_region_cam_4 = new L.geoJson(json_region_cam_4, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_region_cam_4',
+            layerName: 'layer_region_cam_4',
+            pane: 'pane_region_cam_4',
+            onEachFeature: pop_region_cam_4,
+            style: style_region_cam_4_0,
+        });
+        bounds_group.addLayer(layer_region_cam_4);
+        map.addLayer(layer_region_cam_4);
+        function pop_region_ligne_5(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['gid'] !== null ? autolinker.link(String(feature.properties['gid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['nom_region'] !== null ? autolinker.link(String(feature.properties['nom_region']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_regio'] !== null ? autolinker.link(String(feature.properties['code_regio']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['area'] !== null ? autolinker.link(String(feature.properties['area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['pays'] !== null ? autolinker.link(String(feature.properties['pays']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_region_ligne_5_0() {
+            return {
+                pane: 'pane_region_ligne_5',
+                opacity: 1,
+                color: 'rgba(152,125,183,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 1.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_region_ligne_5');
+        map.getPane('pane_region_ligne_5').style.zIndex = 405;
+        map.getPane('pane_region_ligne_5').style['mix-blend-mode'] = 'normal';
+        var layer_region_ligne_5 = new L.geoJson(json_region_ligne_5, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_region_ligne_5',
+            layerName: 'layer_region_ligne_5',
+            pane: 'pane_region_ligne_5',
+            onEachFeature: pop_region_ligne_5,
+            style: style_region_ligne_5_0,
+        });
+        bounds_group.addLayer(layer_region_ligne_5);
+        map.addLayer(layer_region_ligne_5);
+        function pop_arrondissement_cam_line_6(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['num_ar'] !== null ? autolinker.link(String(feature.properties['num_ar']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_arron'] !== null ? autolinker.link(String(feature.properties['code_arron']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_arro_1</th>\
+                        <td class="visible-with-data" id="nom_arro_1">' + (feature.properties['nom_arro_1'] !== null ? autolinker.link(String(feature.properties['nom_arro_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_dept</th>\
+                        <td class="visible-with-data" id="nom_dept">' + (feature.properties['nom_dept'] !== null ? autolinker.link(String(feature.properties['nom_dept']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">nom_region</th>\
+                        <td class="visible-with-data" id="nom_region">' + (feature.properties['nom_region'] !== null ? autolinker.link(String(feature.properties['nom_region']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_arr_2'] !== null ? autolinker.link(String(feature.properties['code_arr_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_dept'] !== null ? autolinker.link(String(feature.properties['code_dept']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">departemen</th>\
+                        <td>' + (feature.properties['departemen'] !== null ? autolinker.link(String(feature.properties['departemen']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['code_regio'] !== null ? autolinker.link(String(feature.properties['code_regio']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['regions'] !== null ? autolinker.link(String(feature.properties['regions']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['area'] !== null ? autolinker.link(String(feature.properties['area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['orig_ogc_f'] !== null ? autolinker.link(String(feature.properties['orig_ogc_f']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_arrondissement_cam_line_6_0() {
+            return {
+                pane: 'pane_arrondissement_cam_line_6',
+                opacity: 1,
+                color: 'rgba(213,180,60,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 1.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_arrondissement_cam_line_6');
+        map.getPane('pane_arrondissement_cam_line_6').style.zIndex = 406;
+        map.getPane('pane_arrondissement_cam_line_6').style['mix-blend-mode'] = 'normal';
+        var layer_arrondissement_cam_line_6 = new L.geoJson(json_arrondissement_cam_line_6, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_arrondissement_cam_line_6',
+            layerName: 'layer_arrondissement_cam_line_6',
+            pane: 'pane_arrondissement_cam_line_6',
+            onEachFeature: pop_arrondissement_cam_line_6,
+            style: style_arrondissement_cam_line_6_0,
+        });
+        bounds_group.addLayer(layer_arrondissement_cam_line_6);
+        map.addLayer(layer_arrondissement_cam_line_6);
+        var overlaysTree = [
+            {label: '<img src="legend/arrondissement_cam_line_6.png" /> arrondissement_cam_line', layer: layer_arrondissement_cam_line_6},
+            {label: '<img src="legend/region_ligne_5.png" /> region_ligne', layer: layer_region_ligne_5},
+            {label: '<img src="legend/region_cam_4.png" /> region_cam', layer: layer_region_cam_4},
+            {label: '<img src="legend/limites_pays_3.png" /> limites_pays', layer: layer_limites_pays_3},
+            {label: '<img src="legend/departement_cam_2.png" /> departement_cam', layer: layer_departement_cam_2},
+            {label: '<img src="legend/arrondissement_cam_360_1.png" /> arrondissement_cam_360', layer: layer_arrondissement_cam_360_1},
+            {label: "OpenStreetMap", layer: layer_OpenStreetMap_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        var i = 0;
+        layer_arrondissement_cam_360_1.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['nom_arro_1'] !== null?String('<div style="color: #000000; font-size: 9pt; font-family: \'Times New Roman\', sans-serif;">' + layer.feature.properties['nom_arro_1']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_arrondissement_cam_360_1'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_departement_cam_2.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['nom_dept'] !== null?String('<div style="color: #323232; font-size: 6pt; font-style: italic; font-family: \'Times New Roman\', sans-serif;">' + layer.feature.properties['nom_dept']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_departement_cam_2'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_region_cam_4.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['nom_region'] !== null?String('<div style="color: #323232; font-size: 12pt; font-family: \'Times New Roman\', sans-serif;">' + layer.feature.properties['nom_region']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_region_cam_4'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var mapDiv = document.getElementById('map');
+        var row = document.createElement('div');
+        row.className="row";
+        row.id="all";
+        row.style.height = "100%";
+        var col1 = document.createElement('div');
+        col1.className="col9";
+        col1.id = "mapWindow";
+        col1.style.height = "99%";
+        col1.style.width = "80%";
+        col1.style.display = "inline-block";
+        var col2 = document.createElement('div');
+        col2.className="col3";
+        col2.id = "menu";
+        col2.style.display = "inline-block";
+        mapDiv.parentNode.insertBefore(row, mapDiv);
+        document.getElementById("all").appendChild(col1);
+        document.getElementById("all").appendChild(col2);
+        col1.appendChild(mapDiv)
+        var Filters = {"nom_arro_1": "str","nom_region": "str","nom_dept": "str"};
+        function filterFunc() {
+          map.eachLayer(function(lyr){
+          if ("options" in lyr && "dataVar" in lyr["options"]){
+            features = this[lyr["options"]["dataVar"]].features.slice(0);
+            try{
+              for (key in Filters){
+                keyS = key.replace(/[^a-zA-Z0-9_]/g, "")
+                if (Filters[key] == "str" || Filters[key] == "bool"){
+                  var selection = [];
+                  var options = document.getElementById("sel_" + keyS).options
+                  for (var i=0; i < options.length; i++) {
+                    if (options[i].selected) selection.push(options[i].value);
+                  }
+                    try{
+                      if (key in features[0].properties){
+                        for (i = features.length - 1;
+                          i >= 0; --i){
+                          if (selection.indexOf(
+                          features[i].properties[key])<0
+                          && selection.length>0) {
+                          features.splice(i,1);
+                          }
+                        }
+                      }
+                    } catch(err){
+                  }
+                }
+                if (Filters[key] == "int"){
+                  sliderVals =  document.getElementById(
+                    "div_" + keyS).noUiSlider.get();
+                  try{
+                    if (key in features[0].properties){
+                    for (i = features.length - 1; i >= 0; --i){
+                      if (parseInt(features[i].properties[key])
+                          < sliderVals[0]
+                          || parseInt(features[i].properties[key])
+                          > sliderVals[1]){
+                            features.splice(i,1);
+                          }
+                        }
+                      }
+                    } catch(err){
+                    }
+                  }
+                if (Filters[key] == "real"){
+                  sliderVals =  document.getElementById(
+                    "div_" + keyS).noUiSlider.get();
+                  try{
+                    if (key in features[0].properties){
+                    for (i = features.length - 1; i >= 0; --i){
+                      if (features[i].properties[key]
+                          < sliderVals[0]
+                          || features[i].properties[key]
+                          > sliderVals[1]){
+                            features.splice(i,1);
+                          }
+                        }
+                      }
+                    } catch(err){
+                    }
+                  }
+                if (Filters[key] == "date"
+                  || Filters[key] == "datetime"
+                  || Filters[key] == "time"){
+                  try{
+                    if (key in features[0].properties){
+                      HTMLkey = key.replace(/[&\/\\#,+()$~%.'":*?<>{} ]/g, '');
+                      startdate = document.getElementById("dat_" +
+                        HTMLkey + "_date1").value.replace(" ", "T");
+                      enddate = document.getElementById("dat_" +
+                        HTMLkey + "_date2").value.replace(" ", "T");
+                      for (i = features.length - 1; i >= 0; --i){
+                        if (features[i].properties[key] < startdate
+                          || features[i].properties[key] > enddate){
+                          features.splice(i,1);
+                        }
+                      }
+                    }
+                  } catch(err){
+                  }
+                }
+              }
+            } catch(err){
+            }
+          this[lyr["options"]["layerName"]].clearLayers();
+          this[lyr["options"]["layerName"]].addData(features);
+        var i = 0;
+        layer_arrondissement_cam_360_1.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['nom_arro_1'] !== null?String('<div style="color: #000000; font-size: 9pt; font-family: \'Times New Roman\', sans-serif;">' + layer.feature.properties['nom_arro_1']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_arrondissement_cam_360_1'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_departement_cam_2.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['nom_dept'] !== null?String('<div style="color: #323232; font-size: 6pt; font-style: italic; font-family: \'Times New Roman\', sans-serif;">' + layer.feature.properties['nom_dept']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_departement_cam_2'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_region_cam_4.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['nom_region'] !== null?String('<div style="color: #323232; font-size: 12pt; font-family: \'Times New Roman\', sans-serif;">' + layer.feature.properties['nom_region']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_region_cam_4'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+          }
+          })
+        }
+            document.getElementById("menu").appendChild(
+                document.createElement("div"));
+            var div_nom_arro_1 = document.createElement('div');
+            div_nom_arro_1.id = "div_nom_arro_1";
+            div_nom_arro_1.className= "filterselect";
+            document.getElementById("menu").appendChild(div_nom_arro_1);
+            sel_nom_arro_1 = document.createElement('select');
+            sel_nom_arro_1.multiple = true;
+            sel_nom_arro_1.size = 10;
+            sel_nom_arro_1.id = "sel_nom_arro_1";
+            var nom_arro_1_options_str = "<option value='' unselected></option>";
+            sel_nom_arro_1.onchange = function(){filterFunc()};
+            nom_arro_1_options_str  += '<option value="Abong Mbang">Abong Mbang</option>';
+            nom_arro_1_options_str  += '<option value="Afanloum">Afanloum</option>';
+            nom_arro_1_options_str  += '<option value="Ako">Ako</option>';
+            nom_arro_1_options_str  += '<option value="Akoeman">Akoeman</option>';
+            nom_arro_1_options_str  += '<option value="Akom 2">Akom 2</option>';
+            nom_arro_1_options_str  += '<option value="Akono">Akono</option>';
+            nom_arro_1_options_str  += '<option value="Akonolinga">Akonolinga</option>';
+            nom_arro_1_options_str  += '<option value="Akwaya">Akwaya</option>';
+            nom_arro_1_options_str  += '<option value="Alou">Alou</option>';
+            nom_arro_1_options_str  += '<option value="Ambam">Ambam</option>';
+            nom_arro_1_options_str  += '<option value="Assamba">Assamba</option>';
+            nom_arro_1_options_str  += '<option value="Awae">Awae</option>';
+            nom_arro_1_options_str  += '<option value="Ayos">Ayos</option>';
+            nom_arro_1_options_str  += '<option value="Babadjou">Babadjou</option>';
+            nom_arro_1_options_str  += '<option value="Babessi">Babessi</option>';
+            nom_arro_1_options_str  += '<option value="Bacheo">Bacheo</option>';
+            nom_arro_1_options_str  += '<option value="Bafang">Bafang</option>';
+            nom_arro_1_options_str  += '<option value="Bafia">Bafia</option>';
+            nom_arro_1_options_str  += '<option value="Bafoussam 1">Bafoussam 1</option>';
+            nom_arro_1_options_str  += '<option value="Bafoussam 2">Bafoussam 2</option>';
+            nom_arro_1_options_str  += '<option value="Bafoussam 3">Bafoussam 3</option>';
+            nom_arro_1_options_str  += '<option value="Bafut">Bafut</option>';
+            nom_arro_1_options_str  += '<option value="Baham">Baham</option>';
+            nom_arro_1_options_str  += '<option value="Bakou">Bakou</option>';
+            nom_arro_1_options_str  += '<option value="Bali">Bali</option>';
+            nom_arro_1_options_str  += '<option value="Balikumbat">Balikumbat</option>';
+            nom_arro_1_options_str  += '<option value="Bamenda 1">Bamenda 1</option>';
+            nom_arro_1_options_str  += '<option value="Bamenda 2">Bamenda 2</option>';
+            nom_arro_1_options_str  += '<option value="Bamenda 3">Bamenda 3</option>';
+            nom_arro_1_options_str  += '<option value="Bamendjou">Bamendjou</option>';
+            nom_arro_1_options_str  += '<option value="Bamuso">Bamuso</option>';
+            nom_arro_1_options_str  += '<option value="Bana">Bana</option>';
+            nom_arro_1_options_str  += '<option value="Bandja">Bandja</option>';
+            nom_arro_1_options_str  += '<option value="Bandjoun">Bandjoun</option>';
+            nom_arro_1_options_str  += '<option value="Bangangte">Bangangte</option>';
+            nom_arro_1_options_str  += '<option value="Bangem">Bangem</option>';
+            nom_arro_1_options_str  += '<option value="Bangou">Bangou</option>';
+            nom_arro_1_options_str  += '<option value="Bangourain">Bangourain</option>';
+            nom_arro_1_options_str  += '<option value="Banka">Banka</option>';
+            nom_arro_1_options_str  += '<option value="Bankim">Bankim</option>';
+            nom_arro_1_options_str  += '<option value="Banwa">Banwa</option>';
+            nom_arro_1_options_str  += '<option value="Banyo">Banyo</option>';
+            nom_arro_1_options_str  += '<option value="Bare Bakem">Bare Bakem</option>';
+            nom_arro_1_options_str  += '<option value="Bassamba">Bassamba</option>';
+            nom_arro_1_options_str  += '<option value="Batcham">Batcham</option>';
+            nom_arro_1_options_str  += '<option value="Batchenga">Batchenga</option>';
+            nom_arro_1_options_str  += '<option value="Batibo">Batibo</option>';
+            nom_arro_1_options_str  += '<option value="Batie">Batie</option>';
+            nom_arro_1_options_str  += '<option value="Batouri">Batouri</option>';
+            nom_arro_1_options_str  += '<option value="Bayangam">Bayangam</option>';
+            nom_arro_1_options_str  += '<option value="Bazou">Bazou</option>';
+            nom_arro_1_options_str  += '<option value="Bebeng">Bebeng</option>';
+            nom_arro_1_options_str  += '<option value="Beka">Beka</option>';
+            nom_arro_1_options_str  += '<option value="Belabo">Belabo</option>';
+            nom_arro_1_options_str  += '<option value="Belel">Belel</option>';
+            nom_arro_1_options_str  += '<option value="Belo">Belo</option>';
+            nom_arro_1_options_str  += '<option value="Bengbis">Bengbis</option>';
+            nom_arro_1_options_str  += '<option value="Bertoua 1">Bertoua 1</option>';
+            nom_arro_1_options_str  += '<option value="Bertoua 2">Bertoua 2</option>';
+            nom_arro_1_options_str  += '<option value="Betare Oya">Betare Oya</option>';
+            nom_arro_1_options_str  += '<option value="Bibe">Bibe</option>';
+            nom_arro_1_options_str  += '<option value="Bibemi">Bibemi</option>';
+            nom_arro_1_options_str  += '<option value="Bikok">Bikok</option>';
+            nom_arro_1_options_str  += '<option value="Bipindi">Bipindi</option>';
+            nom_arro_1_options_str  += '<option value="Biwong Bane">Biwong Bane</option>';
+            nom_arro_1_options_str  += '<option value="Biwong Bulu">Biwong Bulu</option>';
+            nom_arro_1_options_str  += '<option value="Biyouha">Biyouha</option>';
+            nom_arro_1_options_str  += '<option value="Blangoua">Blangoua</option>';
+            nom_arro_1_options_str  += '<option value="Bogo">Bogo</option>';
+            nom_arro_1_options_str  += '<option value="Bokito">Bokito</option>';
+            nom_arro_1_options_str  += '<option value="Bombe">Bombe</option>';
+            nom_arro_1_options_str  += '<option value="Bonge">Bonge</option>';
+            nom_arro_1_options_str  += '<option value="Bonjock">Bonjock</option>';
+            nom_arro_1_options_str  += '<option value="Bot Makak">Bot Makak</option>';
+            nom_arro_1_options_str  += '<option value="Bourrah">Bourrah</option>';
+            nom_arro_1_options_str  += '<option value="Buea">Buea</option>';
+            nom_arro_1_options_str  += '<option value="Bum">Bum</option>';
+            nom_arro_1_options_str  += '<option value="Campo">Campo</option>';
+            nom_arro_1_options_str  += '<option value="Darak">Darak</option>';
+            nom_arro_1_options_str  += '<option value="Dargala">Dargala</option>';
+            nom_arro_1_options_str  += '<option value="Datcheka">Datcheka</option>';
+            nom_arro_1_options_str  += '<option value="Dembo">Dembo</option>';
+            nom_arro_1_options_str  += '<option value="Demsa">Demsa</option>';
+            nom_arro_1_options_str  += '<option value="Deuk">Deuk</option>';
+            nom_arro_1_options_str  += '<option value="Dibamba">Dibamba</option>';
+            nom_arro_1_options_str  += '<option value="Dibang">Dibang</option>';
+            nom_arro_1_options_str  += '<option value="Dibombari">Dibombari</option>';
+            nom_arro_1_options_str  += '<option value="Dikome Value">Dikome Value</option>';
+            nom_arro_1_options_str  += '<option value="Dimako">Dimako</option>';
+            nom_arro_1_options_str  += '<option value="Dir">Dir</option>';
+            nom_arro_1_options_str  += '<option value="Dizangue">Dizangue</option>';
+            nom_arro_1_options_str  += '<option value="Dja">Dja</option>';
+            nom_arro_1_options_str  += '<option value="Djebem">Djebem</option>';
+            nom_arro_1_options_str  += '<option value="Djohong">Djohong</option>';
+            nom_arro_1_options_str  += '<option value="Djoum">Djoum</option>';
+            nom_arro_1_options_str  += '<option value="Douala 2">Douala 2</option>';
+            nom_arro_1_options_str  += '<option value="Douala 3">Douala 3</option>';
+            nom_arro_1_options_str  += '<option value="Douala 4">Douala 4</option>';
+            nom_arro_1_options_str  += '<option value="Douala 5">Douala 5</option>';
+            nom_arro_1_options_str  += '<option value="Douala 6">Douala 6</option>';
+            nom_arro_1_options_str  += '<option value="Douala1">Douala1</option>';
+            nom_arro_1_options_str  += '<option value="Doume">Doume</option>';
+            nom_arro_1_options_str  += '<option value="Doumetang">Doumetang</option>';
+            nom_arro_1_options_str  += '<option value="Dschang">Dschang</option>';
+            nom_arro_1_options_str  += '<option value="Dzeng">Dzeng</option>';
+            nom_arro_1_options_str  += '<option value="Ebebda">Ebebda</option>';
+            nom_arro_1_options_str  += '<option value="Ebolowa 1">Ebolowa 1</option>';
+            nom_arro_1_options_str  += '<option value="Ebolowa 2">Ebolowa 2</option>';
+            nom_arro_1_options_str  += '<option value="Edea 1">Edea 1</option>';
+            nom_arro_1_options_str  += '<option value="Edea 2">Edea 2</option>';
+            nom_arro_1_options_str  += '<option value="Edzendouan">Edzendouan</option>';
+            nom_arro_1_options_str  += '<option value="Efoulan">Efoulan</option>';
+            nom_arro_1_options_str  += '<option value="Ekondo Titi">Ekondo Titi</option>';
+            nom_arro_1_options_str  += '<option value="Elig Mfomo">Elig Mfomo</option>';
+            nom_arro_1_options_str  += '<option value="Endom">Endom</option>';
+            nom_arro_1_options_str  += '<option value="Eseka">Eseka</option>';
+            nom_arro_1_options_str  += '<option value="Esse">Esse</option>';
+            nom_arro_1_options_str  += '<option value="Evodoula">Evodoula</option>';
+            nom_arro_1_options_str  += '<option value="Eyumodjock">Eyumodjock</option>';
+            nom_arro_1_options_str  += '<option value="Fifinda">Fifinda</option>';
+            nom_arro_1_options_str  += '<option value="Figuil">Figuil</option>';
+            nom_arro_1_options_str  += '<option value="Fiko">Fiko</option>';
+            nom_arro_1_options_str  += '<option value="Fokoue">Fokoue</option>';
+            nom_arro_1_options_str  += '<option value="Fongo Tongo">Fongo Tongo</option>';
+            nom_arro_1_options_str  += '<option value="Fontem">Fontem</option>';
+            nom_arro_1_options_str  += '<option value="Fotokol">Fotokol</option>';
+            nom_arro_1_options_str  += '<option value="Foumban">Foumban</option>';
+            nom_arro_1_options_str  += '<option value="Foumbot">Foumbot</option>';
+            nom_arro_1_options_str  += '<option value="Fundong">Fundong</option>';
+            nom_arro_1_options_str  += '<option value="Fungom">Fungom</option>';
+            nom_arro_1_options_str  += '<option value="Furu Awa">Furu Awa</option>';
+            nom_arro_1_options_str  += '<option value="Galim">Galim</option>';
+            nom_arro_1_options_str  += '<option value="Galim Tignere">Galim Tignere</option>';
+            nom_arro_1_options_str  += '<option value="Gari Gombo">Gari Gombo</option>';
+            nom_arro_1_options_str  += '<option value="Garoua 1">Garoua 1</option>';
+            nom_arro_1_options_str  += '<option value="Garoua 2">Garoua 2</option>';
+            nom_arro_1_options_str  += '<option value="Garoua 3">Garoua 3</option>';
+            nom_arro_1_options_str  += '<option value="Garoua Boulai">Garoua Boulai</option>';
+            nom_arro_1_options_str  += '<option value="Gazawa">Gazawa</option>';
+            nom_arro_1_options_str  += '<option value="Gobo">Gobo</option>';
+            nom_arro_1_options_str  += '<option value="Goulfey">Goulfey</option>';
+            nom_arro_1_options_str  += '<option value="Guere">Guere</option>';
+            nom_arro_1_options_str  += '<option value="Guider">Guider</option>';
+            nom_arro_1_options_str  += '<option value="Guidiguis">Guidiguis</option>';
+            nom_arro_1_options_str  += '<option value="Hile Alifa">Hile Alifa</option>';
+            nom_arro_1_options_str  += '<option value="Hina">Hina</option>';
+            nom_arro_1_options_str  += '<option value="Idabato">Idabato</option>';
+            nom_arro_1_options_str  += '<option value="Issanguele">Issanguele</option>';
+            nom_arro_1_options_str  += '<option value="Jakiri">Jakiri</option>';
+            nom_arro_1_options_str  += '<option value="Kaele">Kaele</option>';
+            nom_arro_1_options_str  += '<option value="Kaikai">Kaikai</option>';
+            nom_arro_1_options_str  += '<option value="Kalfou">Kalfou</option>';
+            nom_arro_1_options_str  += '<option value="Kar Hay">Kar Hay</option>';
+            nom_arro_1_options_str  += '<option value="Kekem">Kekem</option>';
+            nom_arro_1_options_str  += '<option value="Kette">Kette</option>';
+            nom_arro_1_options_str  += '<option value="Kiiki">Kiiki</option>';
+            nom_arro_1_options_str  += '<option value="Kolofata">Kolofata</option>';
+            nom_arro_1_options_str  += '<option value="Kombo Abedimo">Kombo Abedimo</option>';
+            nom_arro_1_options_str  += '<option value="Kombo Etindi">Kombo Etindi</option>';
+            nom_arro_1_options_str  += '<option value="Kon-Yambetta">Kon-Yambetta</option>';
+            nom_arro_1_options_str  += '<option value="Kontcha">Kontcha</option>';
+            nom_arro_1_options_str  += '<option value="Konye">Konye</option>';
+            nom_arro_1_options_str  += '<option value="Kouoptamo">Kouoptamo</option>';
+            nom_arro_1_options_str  += '<option value="Kousseri">Kousseri</option>';
+            nom_arro_1_options_str  += '<option value="Koutaba">Koutaba</option>';
+            nom_arro_1_options_str  += '<option value="Koza">Koza</option>';
+            nom_arro_1_options_str  += '<option value="Kribi 1">Kribi 1</option>';
+            nom_arro_1_options_str  += '<option value="Kribi 2">Kribi 2</option>';
+            nom_arro_1_options_str  += '<option value="Kumba 1">Kumba 1</option>';
+            nom_arro_1_options_str  += '<option value="Kumba 2">Kumba 2</option>';
+            nom_arro_1_options_str  += '<option value="Kumba 3">Kumba 3</option>';
+            nom_arro_1_options_str  += '<option value="Kumbo">Kumbo</option>';
+            nom_arro_1_options_str  += '<option value="Kye Ossi">Kye Ossi</option>';
+            nom_arro_1_options_str  += '<option value="Lagdo">Lagdo</option>';
+            nom_arro_1_options_str  += '<option value="Lembe Yezoum">Lembe Yezoum</option>';
+            nom_arro_1_options_str  += '<option value="Limbe 1">Limbe 1</option>';
+            nom_arro_1_options_str  += '<option value="Limbe 2">Limbe 2</option>';
+            nom_arro_1_options_str  += '<option value="Limbe 3">Limbe 3</option>';
+            nom_arro_1_options_str  += '<option value="Lobo">Lobo</option>';
+            nom_arro_1_options_str  += '<option value="Logone Birni">Logone Birni</option>';
+            nom_arro_1_options_str  += '<option value="Lolodorf">Lolodorf</option>';
+            nom_arro_1_options_str  += '<option value="Lomie">Lomie</option>';
+            nom_arro_1_options_str  += '<option value="Loum">Loum</option>';
+            nom_arro_1_options_str  += '<option value="Ma&apos;an">Ma&apos;an</option>';
+            nom_arro_1_options_str  += '<option value="Madingring">Madingring</option>';
+            nom_arro_1_options_str  += '<option value="Maga">Maga</option>';
+            nom_arro_1_options_str  += '<option value="Magba">Magba</option>';
+            nom_arro_1_options_str  += '<option value="Makak">Makak</option>';
+            nom_arro_1_options_str  += '<option value="Makari">Makari</option>';
+            nom_arro_1_options_str  += '<option value="Makary">Makary</option>';
+            nom_arro_1_options_str  += '<option value="Makenene">Makenene</option>';
+            nom_arro_1_options_str  += '<option value="Malantouen">Malantouen</option>';
+            nom_arro_1_options_str  += '<option value="Mamfe">Mamfe</option>';
+            nom_arro_1_options_str  += '<option value="Mandjou">Mandjou</option>';
+            nom_arro_1_options_str  += '<option value="Manjo">Manjo</option>';
+            nom_arro_1_options_str  += '<option value="Maroua 1">Maroua 1</option>';
+            nom_arro_1_options_str  += '<option value="Maroua 2">Maroua 2</option>';
+            nom_arro_1_options_str  += '<option value="Maroua 3">Maroua 3</option>';
+            nom_arro_1_options_str  += '<option value="Martap">Martap</option>';
+            nom_arro_1_options_str  += '<option value="Massagam">Massagam</option>';
+            nom_arro_1_options_str  += '<option value="Massok Song Loulou">Massok Song Loulou</option>';
+            nom_arro_1_options_str  += '<option value="Matomb">Matomb</option>';
+            nom_arro_1_options_str  += '<option value="Mayo Baleo">Mayo Baleo</option>';
+            nom_arro_1_options_str  += '<option value="Mayo Darle">Mayo Darle</option>';
+            nom_arro_1_options_str  += '<option value="Mayo Hourna">Mayo Hourna</option>';
+            nom_arro_1_options_str  += '<option value="Mayo Moskota">Mayo Moskota</option>';
+            nom_arro_1_options_str  += '<option value="Mayo Oulo">Mayo Oulo</option>';
+            nom_arro_1_options_str  += '<option value="Mbalmayo">Mbalmayo</option>';
+            nom_arro_1_options_str  += '<option value="Mbandjock">Mbandjock</option>';
+            nom_arro_1_options_str  += '<option value="Mbang">Mbang</option>';
+            nom_arro_1_options_str  += '<option value="Mbanga">Mbanga</option>';
+            nom_arro_1_options_str  += '<option value="Mbangassina">Mbangassina</option>';
+            nom_arro_1_options_str  += '<option value="Mbankomo">Mbankomo</option>';
+            nom_arro_1_options_str  += '<option value="Mbe">Mbe</option>';
+            nom_arro_1_options_str  += '<option value="Mbengwi">Mbengwi</option>';
+            nom_arro_1_options_str  += '<option value="Mboma">Mboma</option>';
+            nom_arro_1_options_str  += '<option value="Mbotoro">Mbotoro</option>';
+            nom_arro_1_options_str  += '<option value="Mbouanz">Mbouanz</option>';
+            nom_arro_1_options_str  += '<option value="Mbouda">Mbouda</option>';
+            nom_arro_1_options_str  += '<option value="Mbven">Mbven</option>';
+            nom_arro_1_options_str  += '<option value="Meiganga">Meiganga</option>';
+            nom_arro_1_options_str  += '<option value="Melong">Melong</option>';
+            nom_arro_1_options_str  += '<option value="Menchum Valley">Menchum Valley</option>';
+            nom_arro_1_options_str  += '<option value="Mengang">Mengang</option>';
+            nom_arro_1_options_str  += '<option value="Mengong">Mengong</option>';
+            nom_arro_1_options_str  += '<option value="Mengueme">Mengueme</option>';
+            nom_arro_1_options_str  += '<option value="Meri">Meri</option>';
+            nom_arro_1_options_str  += '<option value="Messamena">Messamena</option>';
+            nom_arro_1_options_str  += '<option value="Messok">Messok</option>';
+            nom_arro_1_options_str  += '<option value="Messondo">Messondo</option>';
+            nom_arro_1_options_str  += '<option value="Meyomessala">Meyomessala</option>';
+            nom_arro_1_options_str  += '<option value="Meyomessi">Meyomessi</option>';
+            nom_arro_1_options_str  += '<option value="Mfou">Mfou</option>';
+            nom_arro_1_options_str  += '<option value="Mindif">Mindif</option>';
+            nom_arro_1_options_str  += '<option value="Minta">Minta</option>';
+            nom_arro_1_options_str  += '<option value="Mintom 2">Mintom 2</option>';
+            nom_arro_1_options_str  += '<option value="Misaje">Misaje</option>';
+            nom_arro_1_options_str  += '<option value="Mogode">Mogode</option>';
+            nom_arro_1_options_str  += '<option value="Mokolo">Mokolo</option>';
+            nom_arro_1_options_str  += '<option value="Moloundou">Moloundou</option>';
+            nom_arro_1_options_str  += '<option value="Mombo">Mombo</option>';
+            nom_arro_1_options_str  += '<option value="Monatele">Monatele</option>';
+            nom_arro_1_options_str  += '<option value="Mora">Mora</option>';
+            nom_arro_1_options_str  += '<option value="Mouanko">Mouanko</option>';
+            nom_arro_1_options_str  += '<option value="Moulvoudaye">Moulvoudaye</option>';
+            nom_arro_1_options_str  += '<option value="Moutourwa">Moutourwa</option>';
+            nom_arro_1_options_str  += '<option value="Mundemba">Mundemba</option>';
+            nom_arro_1_options_str  += '<option value="Muyuka">Muyuka</option>';
+            nom_arro_1_options_str  += '<option value="Mvangane">Mvangane</option>';
+            nom_arro_1_options_str  += '<option value="Mvengue">Mvengue</option>';
+            nom_arro_1_options_str  += '<option value="Nanga Eboko">Nanga Eboko</option>';
+            nom_arro_1_options_str  += '<option value="Ndelele">Ndelele</option>';
+            nom_arro_1_options_str  += '<option value="Ndem Nam">Ndem Nam</option>';
+            nom_arro_1_options_str  += '<option value="Ndiang">Ndiang</option>';
+            nom_arro_1_options_str  += '<option value="Ndikinimeki">Ndikinimeki</option>';
+            nom_arro_1_options_str  += '<option value="Ndom">Ndom</option>';
+            nom_arro_1_options_str  += '<option value="Ndop">Ndop</option>';
+            nom_arro_1_options_str  += '<option value="Ndoukoula">Ndoukoula</option>';
+            nom_arro_1_options_str  += '<option value="Ndu">Ndu</option>';
+            nom_arro_1_options_str  += '<option value="Ngambe">Ngambe</option>';
+            nom_arro_1_options_str  += '<option value="Ngambe  Tikar">Ngambe  Tikar</option>';
+            nom_arro_1_options_str  += '<option value="Nganha">Nganha</option>';
+            nom_arro_1_options_str  += '<option value="Ngaoui">Ngaoui</option>';
+            nom_arro_1_options_str  += '<option value="Ngaoundal">Ngaoundal</option>';
+            nom_arro_1_options_str  += '<option value="Ngaoundere 1">Ngaoundere 1</option>';
+            nom_arro_1_options_str  += '<option value="Ngaoundere 2">Ngaoundere 2</option>';
+            nom_arro_1_options_str  += '<option value="Ngaoundere 3">Ngaoundere 3</option>';
+            nom_arro_1_options_str  += '<option value="Ngie">Ngie</option>';
+            nom_arro_1_options_str  += '<option value="Ngog Mapubi">Ngog Mapubi</option>';
+            nom_arro_1_options_str  += '<option value="Ngomedzap">Ngomedzap</option>';
+            nom_arro_1_options_str  += '<option value="Ngoro">Ngoro</option>';
+            nom_arro_1_options_str  += '<option value="Ngoulemakong">Ngoulemakong</option>';
+            nom_arro_1_options_str  += '<option value="Ngoumou">Ngoumou</option>';
+            nom_arro_1_options_str  += '<option value="Ngoura">Ngoura</option>';
+            nom_arro_1_options_str  += '<option value="Ngoyla">Ngoyla</option>';
+            nom_arro_1_options_str  += '<option value="Nguelemendouga">Nguelemendouga</option>';
+            nom_arro_1_options_str  += '<option value="Nguibassal">Nguibassal</option>';
+            nom_arro_1_options_str  += '<option value="Nguti">Nguti</option>';
+            nom_arro_1_options_str  += '<option value="Ngwei">Ngwei</option>';
+            nom_arro_1_options_str  += '<option value="Niete">Niete</option>';
+            nom_arro_1_options_str  += '<option value="Nitoukou">Nitoukou</option>';
+            nom_arro_1_options_str  += '<option value="Njikwa">Njikwa</option>';
+            nom_arro_1_options_str  += '<option value="Njimom">Njimom</option>';
+            nom_arro_1_options_str  += '<option value="Njinikom">Njinikom</option>';
+            nom_arro_1_options_str  += '<option value="Njombe Penja">Njombe Penja</option>';
+            nom_arro_1_options_str  += '<option value="Nkambe">Nkambe</option>';
+            nom_arro_1_options_str  += '<option value="Nkolmetet">Nkolmetet</option>';
+            nom_arro_1_options_str  += '<option value="Nkolofamba">Nkolofamba</option>';
+            nom_arro_1_options_str  += '<option value="Nkondjock">Nkondjock</option>';
+            nom_arro_1_options_str  += '<option value="Nkongni">Nkongni</option>';
+            nom_arro_1_options_str  += '<option value="Nkongsamba 1">Nkongsamba 1</option>';
+            nom_arro_1_options_str  += '<option value="Nkongsamba 2">Nkongsamba 2</option>';
+            nom_arro_1_options_str  += '<option value="Nkongsamba 3">Nkongsamba 3</option>';
+            nom_arro_1_options_str  += '<option value="Nkoteng">Nkoteng</option>';
+            nom_arro_1_options_str  += '<option value="Nkum">Nkum</option>';
+            nom_arro_1_options_str  += '<option value="Nlonako">Nlonako</option>';
+            nom_arro_1_options_str  += '<option value="Noni">Noni</option>';
+            nom_arro_1_options_str  += '<option value="Nord Makombe">Nord Makombe</option>';
+            nom_arro_1_options_str  += '<option value="Nsem">Nsem</option>';
+            nom_arro_1_options_str  += '<option value="Ntui">Ntui</option>';
+            nom_arro_1_options_str  += '<option value="Nwa">Nwa</option>';
+            nom_arro_1_options_str  += '<option value="Nyakokombo">Nyakokombo</option>';
+            nom_arro_1_options_str  += '<option value="Nyambaka">Nyambaka</option>';
+            nom_arro_1_options_str  += '<option value="Nyanon">Nyanon</option>';
+            nom_arro_1_options_str  += '<option value="Obala">Obala</option>';
+            nom_arro_1_options_str  += '<option value="Okola">Okola</option>';
+            nom_arro_1_options_str  += '<option value="Oku">Oku</option>';
+            nom_arro_1_options_str  += '<option value="Olamze">Olamze</option>';
+            nom_arro_1_options_str  += '<option value="Ombessa">Ombessa</option>';
+            nom_arro_1_options_str  += '<option value="Oveng">Oveng</option>';
+            nom_arro_1_options_str  += '<option value="Penka Michel">Penka Michel</option>';
+            nom_arro_1_options_str  += '<option value="Pette">Pette</option>';
+            nom_arro_1_options_str  += '<option value="Pitoa">Pitoa</option>';
+            nom_arro_1_options_str  += '<option value="Poli">Poli</option>';
+            nom_arro_1_options_str  += '<option value="Porhi">Porhi</option>';
+            nom_arro_1_options_str  += '<option value="Pouma">Pouma</option>';
+            nom_arro_1_options_str  += '<option value="Rey Bouba">Rey Bouba</option>';
+            nom_arro_1_options_str  += '<option value="Sa&apos;a">Sa&apos;a</option>';
+            nom_arro_1_options_str  += '<option value="Salapoumbe">Salapoumbe</option>';
+            nom_arro_1_options_str  += '<option value="Sangmelima">Sangmelima</option>';
+            nom_arro_1_options_str  += '<option value="Santa">Santa</option>';
+            nom_arro_1_options_str  += '<option value="Santchou">Santchou</option>';
+            nom_arro_1_options_str  += '<option value="Soa">Soa</option>';
+            nom_arro_1_options_str  += '<option value="Somalomo">Somalomo</option>';
+            nom_arro_1_options_str  += '<option value="Soulede Roua">Soulede Roua</option>';
+            nom_arro_1_options_str  += '<option value="Taibong">Taibong</option>';
+            nom_arro_1_options_str  += '<option value="Tchatibali">Tchatibali</option>';
+            nom_arro_1_options_str  += '<option value="Tcheboa">Tcheboa</option>';
+            nom_arro_1_options_str  += '<option value="Tchollire">Tchollire</option>';
+            nom_arro_1_options_str  += '<option value="Tibati">Tibati</option>';
+            nom_arro_1_options_str  += '<option value="Tignere">Tignere</option>';
+            nom_arro_1_options_str  += '<option value="Tiko">Tiko</option>';
+            nom_arro_1_options_str  += '<option value="Toko">Toko</option>';
+            nom_arro_1_options_str  += '<option value="Tokombere">Tokombere</option>';
+            nom_arro_1_options_str  += '<option value="Tombel">Tombel</option>';
+            nom_arro_1_options_str  += '<option value="Tonga">Tonga</option>';
+            nom_arro_1_options_str  += '<option value="Touboro">Touboro</option>';
+            nom_arro_1_options_str  += '<option value="Touroua">Touroua</option>';
+            nom_arro_1_options_str  += '<option value="Tubah">Tubah</option>';
+            nom_arro_1_options_str  += '<option value="Upper Bayang">Upper Bayang</option>';
+            nom_arro_1_options_str  += '<option value="Vele">Vele</option>';
+            nom_arro_1_options_str  += '<option value="Wabane">Wabane</option>';
+            nom_arro_1_options_str  += '<option value="Waza">Waza</option>';
+            nom_arro_1_options_str  += '<option value="West-Coast">West-Coast</option>';
+            nom_arro_1_options_str  += '<option value="Widikum-Menka">Widikum-Menka</option>';
+            nom_arro_1_options_str  += '<option value="Wina">Wina</option>';
+            nom_arro_1_options_str  += '<option value="Wum">Wum</option>';
+            nom_arro_1_options_str  += '<option value="Yabassi">Yabassi</option>';
+            nom_arro_1_options_str  += '<option value="Yagoua">Yagoua</option>';
+            nom_arro_1_options_str  += '<option value="Yaounde 2">Yaounde 2</option>';
+            nom_arro_1_options_str  += '<option value="Yaounde 3">Yaounde 3</option>';
+            nom_arro_1_options_str  += '<option value="Yaounde 4">Yaounde 4</option>';
+            nom_arro_1_options_str  += '<option value="Yaounde 5">Yaounde 5</option>';
+            nom_arro_1_options_str  += '<option value="Yaounde 6">Yaounde 6</option>';
+            nom_arro_1_options_str  += '<option value="Yaounde 7">Yaounde 7</option>';
+            nom_arro_1_options_str  += '<option value="Yaoundé 1">Yaoundé 1</option>';
+            nom_arro_1_options_str  += '<option value="Yingui">Yingui</option>';
+            nom_arro_1_options_str  += '<option value="Yokadouma">Yokadouma</option>';
+            nom_arro_1_options_str  += '<option value="Yoko">Yoko</option>';
+            nom_arro_1_options_str  += '<option value="Zina">Zina</option>';
+            nom_arro_1_options_str  += '<option value="Zoetele">Zoetele</option>';
+            sel_nom_arro_1.innerHTML = nom_arro_1_options_str;
+            div_nom_arro_1.appendChild(sel_nom_arro_1);
+            var lab_nom_arro_1 = document.createElement('div');
+            lab_nom_arro_1.innerHTML = 'nom_arro_1';
+            lab_nom_arro_1.className = 'filterlabel';
+            div_nom_arro_1.appendChild(lab_nom_arro_1);
+            var reset_nom_arro_1 = document.createElement('div');
+            reset_nom_arro_1.innerHTML = 'clear filter';
+            reset_nom_arro_1.className = 'filterlabel';
+            reset_nom_arro_1.onclick = function() {
+                var options = document.getElementById("sel_nom_arro_1").options;
+                for (var i=0; i < options.length; i++) {
+                    options[i].selected = false;
+                }
+                filterFunc();
+            };
+            div_nom_arro_1.appendChild(reset_nom_arro_1);
+            document.getElementById("menu").appendChild(
+                document.createElement("div"));
+            var div_nom_region = document.createElement('div');
+            div_nom_region.id = "div_nom_region";
+            div_nom_region.className= "filterselect";
+            document.getElementById("menu").appendChild(div_nom_region);
+            sel_nom_region = document.createElement('select');
+            sel_nom_region.multiple = true;
+            sel_nom_region.size = 10;
+            sel_nom_region.id = "sel_nom_region";
+            var nom_region_options_str = "<option value='' unselected></option>";
+            sel_nom_region.onchange = function(){filterFunc()};
+            nom_region_options_str  += '<option value="Adamaoua">Adamaoua</option>';
+            nom_region_options_str  += '<option value="Centre">Centre</option>';
+            nom_region_options_str  += '<option value="Est">Est</option>';
+            nom_region_options_str  += '<option value="Extrême-Nord">Extrême-Nord</option>';
+            nom_region_options_str  += '<option value="Littoral">Littoral</option>';
+            nom_region_options_str  += '<option value="Nord">Nord</option>';
+            nom_region_options_str  += '<option value="Nord-Ouest">Nord-Ouest</option>';
+            nom_region_options_str  += '<option value="Ouest">Ouest</option>';
+            nom_region_options_str  += '<option value="Sud">Sud</option>';
+            nom_region_options_str  += '<option value="Sud-Ouest">Sud-Ouest</option>';
+            sel_nom_region.innerHTML = nom_region_options_str;
+            div_nom_region.appendChild(sel_nom_region);
+            var lab_nom_region = document.createElement('div');
+            lab_nom_region.innerHTML = 'nom_region';
+            lab_nom_region.className = 'filterlabel';
+            div_nom_region.appendChild(lab_nom_region);
+            var reset_nom_region = document.createElement('div');
+            reset_nom_region.innerHTML = 'clear filter';
+            reset_nom_region.className = 'filterlabel';
+            reset_nom_region.onclick = function() {
+                var options = document.getElementById("sel_nom_region").options;
+                for (var i=0; i < options.length; i++) {
+                    options[i].selected = false;
+                }
+                filterFunc();
+            };
+            div_nom_region.appendChild(reset_nom_region);
+            document.getElementById("menu").appendChild(
+                document.createElement("div"));
+            var div_nom_dept = document.createElement('div');
+            div_nom_dept.id = "div_nom_dept";
+            div_nom_dept.className= "filterselect";
+            document.getElementById("menu").appendChild(div_nom_dept);
+            sel_nom_dept = document.createElement('select');
+            sel_nom_dept.multiple = true;
+            sel_nom_dept.size = 10;
+            sel_nom_dept.id = "sel_nom_dept";
+            var nom_dept_options_str = "<option value='' unselected></option>";
+            sel_nom_dept.onchange = function(){filterFunc()};
+            nom_dept_options_str  += '<option value="Bamboutos">Bamboutos</option>';
+            nom_dept_options_str  += '<option value="Boumba et Ngoko">Boumba et Ngoko</option>';
+            nom_dept_options_str  += '<option value="Boyo">Boyo</option>';
+            nom_dept_options_str  += '<option value="Bui">Bui</option>';
+            nom_dept_options_str  += '<option value="Bénoué">Bénoué</option>';
+            nom_dept_options_str  += '<option value="Diamaré">Diamaré</option>';
+            nom_dept_options_str  += '<option value="Dja et Lobo">Dja et Lobo</option>';
+            nom_dept_options_str  += '<option value="Djerem">Djerem</option>';
+            nom_dept_options_str  += '<option value="Donga-Mantung">Donga-Mantung</option>';
+            nom_dept_options_str  += '<option value="Fako">Fako</option>';
+            nom_dept_options_str  += '<option value="Faro">Faro</option>';
+            nom_dept_options_str  += '<option value="Faro et Déo">Faro et Déo</option>';
+            nom_dept_options_str  += '<option value="Haut-Nkam">Haut-Nkam</option>';
+            nom_dept_options_str  += '<option value="Haut-Nyong">Haut-Nyong</option>';
+            nom_dept_options_str  += '<option value="Haute-Sanaga">Haute-Sanaga</option>';
+            nom_dept_options_str  += '<option value="Hauts-Plateaux">Hauts-Plateaux</option>';
+            nom_dept_options_str  += '<option value="Kadeï">Kadeï</option>';
+            nom_dept_options_str  += '<option value="Koung-Khi">Koung-Khi</option>';
+            nom_dept_options_str  += '<option value="Kupé-Manengumba">Kupé-Manengumba</option>';
+            nom_dept_options_str  += '<option value="Lebialem">Lebialem</option>';
+            nom_dept_options_str  += '<option value="Lekié">Lekié</option>';
+            nom_dept_options_str  += '<option value="Logone et Chari">Logone et Chari</option>';
+            nom_dept_options_str  += '<option value="Lom et Djérem">Lom et Djérem</option>';
+            nom_dept_options_str  += '<option value="Manyu">Manyu</option>';
+            nom_dept_options_str  += '<option value="Mayo-Banyo">Mayo-Banyo</option>';
+            nom_dept_options_str  += '<option value="Mayo-Danay">Mayo-Danay</option>';
+            nom_dept_options_str  += '<option value="Mayo-Kani">Mayo-Kani</option>';
+            nom_dept_options_str  += '<option value="Mayo-Louti">Mayo-Louti</option>';
+            nom_dept_options_str  += '<option value="Mayo-Rey">Mayo-Rey</option>';
+            nom_dept_options_str  += '<option value="Mayo-Sava">Mayo-Sava</option>';
+            nom_dept_options_str  += '<option value="Mayo-Tsanaga">Mayo-Tsanaga</option>';
+            nom_dept_options_str  += '<option value="Mbam et Inoubou">Mbam et Inoubou</option>';
+            nom_dept_options_str  += '<option value="Mbam et Kim">Mbam et Kim</option>';
+            nom_dept_options_str  += '<option value="Mbéré">Mbéré</option>';
+            nom_dept_options_str  += '<option value="Mefou et Akono">Mefou et Akono</option>';
+            nom_dept_options_str  += '<option value="Memé">Memé</option>';
+            nom_dept_options_str  += '<option value="Menchum">Menchum</option>';
+            nom_dept_options_str  += '<option value="Menoua">Menoua</option>';
+            nom_dept_options_str  += '<option value="Mezam">Mezam</option>';
+            nom_dept_options_str  += '<option value="Mfoundi">Mfoundi</option>';
+            nom_dept_options_str  += '<option value="Mifi">Mifi</option>';
+            nom_dept_options_str  += '<option value="Momo">Momo</option>';
+            nom_dept_options_str  += '<option value="Moungo">Moungo</option>';
+            nom_dept_options_str  += '<option value="Mvila">Mvila</option>';
+            nom_dept_options_str  += '<option value="Méfou et Afamba">Méfou et Afamba</option>';
+            nom_dept_options_str  += '<option value="Ndian">Ndian</option>';
+            nom_dept_options_str  += '<option value="Ndé">Ndé</option>';
+            nom_dept_options_str  += '<option value="Ngo-Ketunjia">Ngo-Ketunjia</option>';
+            nom_dept_options_str  += '<option value="Nkam">Nkam</option>';
+            nom_dept_options_str  += '<option value="Noun">Noun</option>';
+            nom_dept_options_str  += '<option value="Nyong et Kéllé">Nyong et Kéllé</option>';
+            nom_dept_options_str  += '<option value="Nyong et Mfoumou">Nyong et Mfoumou</option>';
+            nom_dept_options_str  += '<option value="Nyong et So&apos;o">Nyong et So&apos;o</option>';
+            nom_dept_options_str  += '<option value="Océan">Océan</option>';
+            nom_dept_options_str  += '<option value="Sanaga Maritime">Sanaga Maritime</option>';
+            nom_dept_options_str  += '<option value="Vallée du Ntem">Vallée du Ntem</option>';
+            nom_dept_options_str  += '<option value="Vina">Vina</option>';
+            nom_dept_options_str  += '<option value="Wouri">Wouri</option>';
+            sel_nom_dept.innerHTML = nom_dept_options_str;
+            div_nom_dept.appendChild(sel_nom_dept);
+            var lab_nom_dept = document.createElement('div');
+            lab_nom_dept.innerHTML = 'nom_dept';
+            lab_nom_dept.className = 'filterlabel';
+            div_nom_dept.appendChild(lab_nom_dept);
+            var reset_nom_dept = document.createElement('div');
+            reset_nom_dept.innerHTML = 'clear filter';
+            reset_nom_dept.className = 'filterlabel';
+            reset_nom_dept.onclick = function() {
+                var options = document.getElementById("sel_nom_dept").options;
+                for (var i=0; i < options.length; i++) {
+                    options[i].selected = false;
+                }
+                filterFunc();
+            };
+            div_nom_dept.appendChild(reset_nom_dept);
+        resetLabels([layer_arrondissement_cam_360_1,layer_departement_cam_2,layer_region_cam_4]);
+        map.on("zoomend", function(){
+            resetLabels([layer_arrondissement_cam_360_1,layer_departement_cam_2,layer_region_cam_4]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_arrondissement_cam_360_1,layer_departement_cam_2,layer_region_cam_4]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_arrondissement_cam_360_1,layer_departement_cam_2,layer_region_cam_4]);
+        });
+        </script>        
+    </body>
+</html>
